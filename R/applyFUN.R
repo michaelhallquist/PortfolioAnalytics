@@ -105,7 +105,7 @@ scatterFUN <- function(R, FUN, arguments=NULL){
   # match the FUN arg to a risk or return function
   switch(FUN,
          mean = {
-           return(as.numeric(apply(R, 2, mean)))
+           return(as.numeric(apply(R, 2, mean, na.rm=TRUE)))
            #fun = match.fun(mean)
            #nargs$x = R
          },

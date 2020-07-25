@@ -87,8 +87,7 @@ chart.Weights.DE <- function(object, ..., neighbors = NULL, main="Weights", las 
 }
 
 #' @rdname chart.Weights
-#' @method chart.Weights optimize.portfolio.DEoptim
-#' @S3method chart.Weights optimize.portfolio.DEoptim
+#' @export
 chart.Weights.optimize.portfolio.DEoptim <- chart.Weights.DE
 
 
@@ -305,8 +304,7 @@ chart.Scatter.DE <- function(object, ..., neighbors = NULL, return.col='mean', r
 }
 
 #' @rdname chart.RiskReward
-#' @method chart.RiskReward optimize.portfolio.DEoptim
-#' @S3method chart.RiskReward optimize.portfolio.DEoptim
+#' @export
 chart.RiskReward.optimize.portfolio.DEoptim <- chart.Scatter.DE
 
 
@@ -357,8 +355,7 @@ charts.DE <- function(DE, risk.col, return.col, chart.assets, neighbors=NULL, ma
 #' @param element.color provides the color for drawing less-important chart elements, such as the box lines, axis lines, etc.
 #' @param cex.axis the magnification to be used for axis annotation relative to the current setting of \code{cex}.
 #' @rdname plot
-#' @method plot optimize.portfolio.DEoptim
-#' @S3method plot optimize.portfolio.DEoptim
+#' @export
 plot.optimize.portfolio.DEoptim <- function(x, ..., return.col='mean', risk.col='ES',  chart.assets=FALSE, neighbors=NULL, main='optimized portfolio plot', xlim=NULL, ylim=NULL) {
     charts.DE(DE=x, risk.col=risk.col, return.col=return.col, chart.assets=chart.assets, neighbors=neighbors, main=main, xlim=xlim, ylim=ylim, ...)
 }

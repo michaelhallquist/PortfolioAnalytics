@@ -1501,7 +1501,7 @@ optimize.portfolio.rebalancing_v1 <- function(R,constraints,optimize_method=c("D
 #' rolling_window=48)
 #' }
 #' @export
-optimize.portfolio.rebalancing <- function(R, portfolio=NULL, constraints=NULL, objectives=NULL, optimize_method=c("DEoptim","random","ROI"), search_size=20000, trace=FALSE, ..., rp=NULL, rebalance_on=NULL, training_period=NULL, rolling_window=NULL)
+optimize.portfolio.rebalancing <- function(R, portfolio=NULL, constraints=NULL, objectives=NULL, optimize_method=c("DEoptim","random","ROI"), search_size=20000, trace=FALSE, ..., rp=NULL, rebalance_on=NULL, training_period=NULL, rolling_window=NULL, mincov=3)
 {
   stopifnot("package:foreach" %in% search() || requireNamespace("foreach",quietly=TRUE))
   stopifnot("package:iterators" %in% search() || requireNamespace("iterators",quietly=TRUE))
@@ -1622,14 +1622,19 @@ optimize.portfolio.rebalancing <- function(R, portfolio=NULL, constraints=NULL, 
     # now apply optimize.portfolio to the periods, in parallel if available
     ep <- ep.i[1]
     out_list<-foreach::foreach(ep=iterators::iter(ep.i), .errorhandling='pass', .packages='PortfolioAnalytics') %dopar% {
-      optimize.portfolio(R[1:ep,], portfolio=portfolio, optimize_method=optimize_method, search_size=search_size, trace=trace, rp=rp, parallel=FALSE, ...=...)
+      R_windowed <- R[1:ep,]
+      pmod <- trim_portfolio(portfolio = portfolio, returns = R_windowed, mincov = mincov)
+      optimize.portfolio(R_windowed, portfolio=pmod, optimize_method=optimize_method, search_size=search_size, trace=trace, rp=rp, parallel=FALSE, ...=...)
     }
   } else {
     # define the index endpoints of our periods
     ep.i<-endpoints(R,on=rebalance_on)[which(endpoints(R, on = rebalance_on)>=training_period)]
     # now apply optimize.portfolio to the periods, in parallel if available
     out_list<-foreach::foreach(ep=iterators::iter(ep.i), .errorhandling='pass', .packages='PortfolioAnalytics') %dopar% {
-      optimize.portfolio(R[(ifelse(ep-rolling_window>=1,ep-rolling_window,1)):ep,], portfolio=portfolio, optimize_method=optimize_method, search_size=search_size, trace=trace, rp=rp, parallel=FALSE, ...=...)
+      R[(ifelse(ep-rolling_window>=1,ep-rolling_window,1)):ep,]
+      pmod <- trim_portfolio(portfolio = portfolio, returns = R_windowed, mincov = mincov)
+      
+      optimize.portfolio(R_windowed, portfolio=pmod, optimize_method=optimize_method, search_size=search_size, trace=trace, rp=rp, parallel=FALSE, ...=...)
     }
   }
   # out_list is a list where each element is an optimize.portfolio object
@@ -1722,6 +1727,128 @@ optimize.portfolio.parallel <- function(R,
 
 
 #TODO write function to compute an efficient frontier of optimal portfolios
+
+#function to trim a portfolio of assets with missing data between start and end that would
+#invalidate optimization
+#' helper function to trim a portfolio containing missing assets within the interval of interest
+#' 
+#' @param portfolio portfolio.spec object to be modified
+#' @returns time series of returns to be checked for missingness
+#' @param start character vector start date to be used to window \code{returns}
+#' @param end character vector end date to be used to window \code{returns}
+#' @param mincov number of observations that must be present in variances and covariances for an asset
+#'   to be retained in the resulting portfolio object
+#'   
+#' @return A modified \code{portfolio.spec} object containing only assets with observations above the \code{mincov}
+#'   threshold in covariance estimation.
+#'   
+#' @details Portfolio optimization breaks down if there is missingnes in the assets being considered within the window of
+#'   interest. Although the moments of returns are calculated using pairwise completeness, the variance-covariance matrix
+#'   still breaks down if there is no overlap in two assets (e.g., if one product is introduced and another is phased out).
+#'   
+#'   To overcome this, the \code{reduce_matrix_mincov} function trims the returns matrix to assets that have at least \code{mincov}
+#'   observations. However, if we need to regenerate a corresponding portfolio specification, we must trim out the bad assets
+#'   from the set, then re-add the constraints and objectives. This function achieves that purpose.
+#'   
+#'   It accepts an existing portfolio specification object and a (possibly) reduced \code{returns} matrix. The \code{returns} matrix
+#'   is checked for a minimum number of observations using \code{reduce_matrix_mincov}. If any assets are dropped from the returns,
+#'   a new, respecified portfolio object is generated only containing the assets with sufficient data for covariance estimation.
+#'   Constraints and objectives are then added from the original \code{portfolio} and the object is returned to the user.
+#'   
+#' @author Michael Hallquist
+#' @importFrom pryr modify_call
+#' @export
+trim_portfolio <- function(portfolio, returns, start=NULL, end=NULL, mincov=10) {
+  stopifnot(inherits(portfolio, "portfolio.spec"))
+  
+  if (!is.null(start) || !is.null(end)) {
+    R <- window(returns, start=start, end=end)
+  } else {
+    R <- returns
+  }
+  
+  R <- reduce_matrix_mincov(R, mincov=mincov, verbose=FALSE)
+  
+  if (!is.null(attr(R, "dropped_assets"))) {
+    assets <- setdiff(names(portfolio$assets), attr(R, "dropped_assets"))
+  } else {
+    return(portfolio) #no modifications are needed because no assets were dropped
+  }
+  
+  p_respec <- portfolio.spec(assets=assets)
+  
+  #copy any constraints across
+  if (length(portfolio$constraints) > 0L) {
+    for (cc in 1:length(portfolio$constraints)) {
+      #replace whatever portfolio was used with the respecified portfolio
+      newcall <- pryr::modify_call(portfolio$constraints[[cc]]$call, list(portfolio=quote(p_respec)))
+      p_respec <- eval(newcall)
+    }
+  }
+  
+  #copy any objectives across
+  if (length(portfolio$objectives) > 0L) {
+    for (cc in 1:length(portfolio$objectives)) {
+      #replace whatever portfolio was used with the respecified portfolio
+      newcall <- pryr::modify_call(portfolio$objectives[[cc]]$call, list(portfolio=quote(p_respec)))
+      p_respec <- eval(newcall)
+    }
+  }
+  
+  return(p_respec)
+}
+
+
+#' helper function to drop columns of matrix until all covariances have have least mincov data points in their estimation
+#' 
+#' @param mat a matrix (usually xts) of returns with observations on rows and assets on columns
+#' @param mincov the minimum number of observations that must be present in all variances and covariances of
+#'   a given asset for it to be retained in the returned matrix. Any asset having fewer than \code{mincov}
+#'   observations is dropped from the returned returns matrix.
+#' @param verbose A TRUE/FALSE argument indicating whether to print to screen which assets were dropped
+#' 
+#' @return A modified returns matrix with assets dropped if they have fewer than \code{mincov} observations for any
+#'   variance or covariance cell
+#' @author Michael Hallquist
+#' @export
+#' 
+reduce_matrix_mincov <- function(mat, mincov=52, verbose=TRUE) {
+  badcols <- c()
+  
+  #start by dropping columns of mat that don't have at least mincov observations
+  #if the column has fewer observations, then all of its covariances are bounded by this, too
+  
+  low_obs <- sapply(mat, function(x) { sum(!is.na(x)) <= mincov } )
+  if (any(low_obs)) {
+    badcols <- c(badcols, names(mat)[low_obs]) #preserve column names of bad products for output
+    mat <- mat[,!low_obs] #drop columns
+  }
+  
+  #it can be hard to figure out which variable is dragging down covariance coverage
+  #fit the covariance matrix, then drop the most offensive variable iteratively until we're above the mincov criterion
+  min_obs <- 0
+  while (min_obs <= mincov) {
+    cmat <- suppressWarnings(Hmisc::rcorr(mat))
+    bad_n <- which(cmat$n < mincov, arr.ind=TRUE)
+    if (nrow(bad_n) > 0) {
+      miss <- sort(table(bad_n[,1]), decreasing=TRUE)
+      worst <- as.numeric(names(miss))[1]
+      badcols <- c(badcols, dimnames(cmat$n)[[1]][worst])
+      mat <- mat[,-1*worst]
+    }
+    min_obs <- min(cmat$n)
+  }
+  
+  if (verbose) {
+    cat("Columns in matrix that were dropped for having fewer than", mincov, "observations\n")
+    print(badcols)
+  }
+  
+  attr(mat, "dropped_assets") <- badcols
+  return(mat)
+}
+
+
 
 ###############################################################################
 # $Id$

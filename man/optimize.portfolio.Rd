@@ -3,19 +3,33 @@
 \name{optimize.portfolio}
 \alias{optimize.portfolio}
 \alias{optimize.portfolio_v1}
-\alias{optimize.portfolio}
 \alias{optimize.portfolio_v2}
-\alias{optimize.portfolio_v1}
 \title{Constrained optimization of portfolios}
 \usage{
-optimize.portfolio_v1(R, constraints, optimize_method = c("DEoptim", "random",
-  "ROI", "ROI_old", "pso", "GenSA"), search_size = 20000, trace = FALSE,
-  ..., rp = NULL, momentFUN = "set.portfolio.moments_v1")
+optimize.portfolio_v1(
+  R,
+  constraints,
+  optimize_method = c("DEoptim", "random", "ROI", "ROI_old", "pso", "GenSA"),
+  search_size = 20000,
+  trace = FALSE,
+  ...,
+  rp = NULL,
+  momentFUN = "set.portfolio.moments_v1"
+)
 
-optimize.portfolio(R, portfolio = NULL, constraints = NULL,
-  objectives = NULL, optimize_method = c("DEoptim", "random", "ROI", "pso",
-  "GenSA"), search_size = 20000, trace = FALSE, ..., rp = NULL,
-  momentFUN = "set.portfolio.moments", message = FALSE)
+optimize.portfolio(
+  R,
+  portfolio = NULL,
+  constraints = NULL,
+  objectives = NULL,
+  optimize_method = c("DEoptim", "random", "ROI", "pso", "GenSA"),
+  search_size = 20000,
+  trace = FALSE,
+  ...,
+  rp = NULL,
+  momentFUN = "set.portfolio.moments",
+  message = FALSE
+)
 }
 \arguments{
 \item{R}{an xts, vector, matrix, data frame, timeSeries or zoo object of asset returns}

@@ -1111,8 +1111,6 @@ leverage_exposure_constraint <- function(type="leverage_exposure", leverage=NULL
 #' @param object object of type \code{\link{constraint}} to update
 #' @param ... any other passthru parameters, used to call \code{\link{constraint}}
 #' @author bpeterson
-#' @method update constraint
-#' @S3method update constraint
 #' @export
 update.constraint <- function(object, ...){
   constraints <- object
