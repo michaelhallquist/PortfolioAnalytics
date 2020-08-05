@@ -375,17 +375,24 @@ extractWeights.optimize.portfolio.rebalancing <- function(object, ...){
   if(!inherits(object, "optimize.portfolio.rebalancing")){
     stop("Object passed in must be of class 'optimize.portfolio.rebalancing'")
   }
+  
+  #refactoring of this function allows the assets available to vary by rebalancing period
   rebal_object <- object$opt_rebal
-  numColumns = length(rebal_object[[1]]$weights)
-  numRows = length(rebal_object)
+  all_weights <- lapply(rebal_object, "[[", "weights")
+  all_assets <- sort(unique(unlist(sapply(all_weights, function(x) { names(x) }))))
+  numRows = length(rebal_object) #number of rebalancing periods
 
-  result <- matrix(nrow=numRows, ncol=numColumns)
+  result <- matrix(0, nrow=numRows, ncol=length(all_assets),
+                   dimnames=list(date=names(rebal_object), asset=all_assets))
 
-  for(i in 1:numRows)
-    result[i,] = unlist(rebal_object[[i]]$weights)
+  for(i in 1:numRows) {
+    #result[i,] = unlist(rebal_object[[i]]$weights)
+    wvec <- unlist(rebal_object[[i]]$weights)
+    result[i,names(wvec)] = wvec
+  }
 
-  colnames(result) = names(unlist(rebal_object[[1]]$weights))
-  rownames(result) = names(rebal_object)
+  #colnames(result) = names(unlist(rebal_object[[1]]$weights))
+  #rownames(result) = names(rebal_object)
   result = as.xts(result, dateFormat="Date")
   return(result)
 }
