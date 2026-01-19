@@ -2,7 +2,9 @@
 % Please edit documentation in R/optimize.portfolio.R
 \name{trim_portfolio}
 \alias{trim_portfolio}
-\title{helper function to trim a portfolio containing missing assets within the interval of interest}
+\title{function to trim a portfolio of assets with missing data between start and end that would
+invalidate optimization
+helper function to trim a portfolio containing missing assets within the interval of interest}
 \usage{
 trim_portfolio(portfolio, returns, start = NULL, end = NULL, mincov = 10)
 }
@@ -23,10 +25,12 @@ A modified \code{portfolio.spec} object containing only assets with observations
   threshold in covariance estimation.
 }
 \description{
+function to trim a portfolio of assets with missing data between start and end that would
+invalidate optimization
 helper function to trim a portfolio containing missing assets within the interval of interest
 }
 \details{
-Portfolio optimization breaks down if there is missingnes in the assets being considered within the window of
+Portfolio optimization breaks down if there is missingness in the assets being considered within the window of
   interest. Although the moments of returns are calculated using pairwise completeness, the variance-covariance matrix
   still breaks down if there is no overlap in two assets (e.g., if one product is introduced and another is phased out).
   

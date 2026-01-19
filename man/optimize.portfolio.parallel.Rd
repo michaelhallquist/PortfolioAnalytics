@@ -22,7 +22,7 @@ optimize.portfolio.parallel(
 
 \item{portfolio}{an object of type "portfolio" specifying the constraints and objectives for the optimization}
 
-\item{optimize_method}{one of "DEoptim", "random", "ROI", "pso", "GenSA", or "CVXR".}
+\item{optimize_method}{one of "DEoptim", "random", "pso", "GenSA".}
 
 \item{search_size}{integer, how many portfolios to test, default 20,000}
 

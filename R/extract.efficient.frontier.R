@@ -72,6 +72,15 @@ extract.efficient.frontier <- function (object=NULL, match.col='ES', from=NULL, 
   return(structure(result, class="frontier"))
 }
 
+is_cvxr_method <- function(optimize_method) {
+  if (is.null(optimize_method) || length(optimize_method) == 0L) {
+    return(FALSE)
+  }
+  method <- toupper(optimize_method[1])
+  cvxr_solvers <- c("CVXR", "CBC", "GLPK", "GLPK_MI", "OSQP", "CPLEX", "SCS", "ECOS", "GUROBI", "MOSEK")
+  method %in% cvxr_solvers
+}
+
 #' Generate the efficient frontier for a mean-variance portfolio
 #' 
 #' This function generates the mean-variance efficient frontier of a portfolio
@@ -82,7 +91,7 @@ extract.efficient.frontier <- function (object=NULL, match.col='ES', from=NULL, 
 #' 
 #' @param portfolio a portfolio object with constraints created via \code{\link{portfolio.spec}}
 #' @param R an xts or matrix of asset returns
-#' @param optimize_method the optimize method to get the efficient frontier, default is ROI
+#' @param optimize_method the optimize method to get the efficient frontier, default is CVXR
 #' @param n.portfolios number of portfolios to plot along the efficient frontier
 #' @param risk_aversion vector of risk_aversion values to construct the efficient frontier.
 #' \code{n.portfolios} is ignored if \code{risk_aversion} is specified and the number
@@ -124,9 +133,11 @@ meanvar.efficient.frontier <- function(portfolio, R, optimize_method='CVXR', n.p
   portfolio <- add.objective(portfolio=portfolio, type="return", name="mean")
   
   # If the user has passed in a portfolio object with return_constraint, we need to disable it
-  for(i in 1:length(portfolio$constraints)){
-    if(inherits(portfolio$constraints[[i]], "return_constraint")){
-      portfolio$constraints[[i]]$enabled <- FALSE
+  if (length(portfolio$constraints) > 0L) {
+    for(i in seq_along(portfolio$constraints)){
+      if(inherits(portfolio$constraints[[i]], "return_constraint")){
+        portfolio$constraints[[i]]$enabled <- FALSE
+      }
     }
   }
   
@@ -146,7 +157,7 @@ meanvar.efficient.frontier <- function(portfolio, R, optimize_method='CVXR', n.p
   # run the optimization to get the maximum return
   tmp <- optimize.portfolio(R=R, portfolio=portfolio, optimize_method=optimize_method, ...=...)
   mean_ret <- colMeans(R)
-  maxret <- extract_risk(R, tmp$weights)$mean
+  maxret <- sum(tmp$weights * mean_ret)
   
   ##### Get the return at the minimum variance portfolio #####
   
@@ -162,7 +173,7 @@ meanvar.efficient.frontier <- function(portfolio, R, optimize_method='CVXR', n.p
   # Do we want to disable the turnover or transaction costs constraints here?
   tmp <- optimize.portfolio(R=R, portfolio=portfolio, optimize_method=optimize_method, ...=...)
   stats <- extractStats(tmp)
-  minret <- extract_risk(R, tmp$weights)$mean
+  minret <- sum(tmp$weights * mean_ret)
   
   # length.out is the number of portfolios to create
   ret_seq <- seq(from=minret, to=maxret, length.out=n.portfolios)
@@ -208,7 +219,7 @@ meanvar.efficient.frontier <- function(portfolio, R, optimize_method='CVXR', n.p
 #' 
 #' @param portfolio a portfolio object with constraints and objectives created via \code{\link{portfolio.spec}}
 #' @param R an xts or matrix of asset returns
-#' @param optimize_method the optimize method to get the efficient frontier, default is ROI
+#' @param optimize_method the optimize method to get the efficient frontier, default is CVXR
 #' @param n.portfolios number of portfolios to generate the efficient frontier
 #' @param \dots passthru parameters to \code{\link{optimize.portfolio}}
 #' @return a matrix of objective measure values and weights along the efficient frontier
@@ -241,9 +252,11 @@ meanetl.efficient.frontier <- meanes.efficient.frontier <- function(portfolio, R
   objnames <- unlist(lapply(portfolio$objectives, function(x) x$name))
   
   # If the user has passed in a portfolio object with return_constraint, we need to disable it
-  for(i in 1:length(portfolio$constraints)){
-    if(inherits(portfolio$constraints[[i]], "return_constraint")){
-      portfolio$constraints[[i]]$enabled <- FALSE
+  if (length(portfolio$constraints) > 0L) {
+    for(i in seq_along(portfolio$constraints)){
+      if(inherits(portfolio$constraints[[i]], "return_constraint")){
+        portfolio$constraints[[i]]$enabled <- FALSE
+      }
     }
   }
   
@@ -328,9 +341,11 @@ meancsm.efficient.frontier <- function(portfolio, R, optimize_method='CVXR', n.p
   objnames <- unlist(lapply(portfolio$objectives, function(x) x$name))
   
   # If the user has passed in a portfolio object with return_constraint, we need to disable it
-  for(i in 1:length(portfolio$constraints)){
-    if(inherits(portfolio$constraints[[i]], "return_constraint")){
-      portfolio$constraints[[i]]$enabled <- FALSE
+  if (length(portfolio$constraints) > 0L) {
+    for(i in seq_along(portfolio$constraints)){
+      if(inherits(portfolio$constraints[[i]], "return_constraint")){
+        portfolio$constraints[[i]]$enabled <- FALSE
+      }
     }
   }
   
@@ -390,6 +405,13 @@ meanrisk.efficient.frontier <- function(portfolio, R, optimize_method='CVXR', n.
   # step 1: mean-StdDev efficient frontier
   # step 2: calculate minimum ES with target return
   
+  is_cvxr <- is_cvxr_method(optimize_method)
+  risk_type_upper <- toupper(risk_type)
+  compare_upper <- toupper(compare_port)
+  if (!is_cvxr && ("CSM" %in% c(risk_type_upper, compare_upper))) {
+    stop("CSM risk requires CVXR; set optimize_method='CVXR'")
+  }
+
   risk_compare <- compare_port[-which(compare_port == risk_type)]
   
   # Use the portfolio_risk_objective from the portfolio if they have it
@@ -412,9 +434,11 @@ meanrisk.efficient.frontier <- function(portfolio, R, optimize_method='CVXR', n.
   objnames <- unlist(lapply(portfolio$objectives, function(x) x$name))
   
   # If the user has passed in a portfolio object with return_constraint, we need to disable it
-  for(i in 1:length(portfolio$constraints)){
-    if(inherits(portfolio$constraints[[i]], "return_constraint")){
-      portfolio$constraints[[i]]$enabled <- FALSE
+  if (length(portfolio$constraints) > 0L) {
+    for(i in seq_along(portfolio$constraints)){
+      if(inherits(portfolio$constraints[[i]], "return_constraint")){
+        portfolio$constraints[[i]]$enabled <- FALSE
+      }
     }
   }
   
@@ -442,14 +466,30 @@ meanrisk.efficient.frontier <- function(portfolio, R, optimize_method='CVXR', n.
   stopifnot("package:foreach" %in% search() || requireNamespace("foreach",quietly = TRUE))
   stopifnot("package:iterators" %in% search() || requireNamespace("iterators",quietly = TRUE))
   ret <- ret_seq[1]
+  compute_risk_value <- function(w, metric) {
+    metric_upper <- toupper(metric)
+    if (metric_upper %in% c("STDDEV", "SD")) {
+      return(sqrt(as.numeric(t(w) %*% cov(R) %*% w)))
+    }
+    if (metric_upper %in% c("ES", "ETL", "CVAR")) {
+      port_ret <- as.numeric(R %*% w)
+      return(PerformanceAnalytics::ES(port_ret, p = 1 - alpha, method = "historical"))
+    }
+    stop("Unsupported risk metric without CVXR: ", metric)
+  }
+
   out <- foreach::foreach(ret=iterators::iter(ret_seq), .inorder=TRUE, .combine=rbind, .errorhandling='remove', .packages='PortfolioAnalytics') %dopar% {
     portfolio$objectives[[mean_idx]]$target <- ret
     res <- extractStats(optimize.portfolio(R=R, portfolio=portfolio, optimize_method=optimize_method, ef=TRUE, ...=...))
     for(rc in risk_compare){
       tmpportfolio <- portfolio
       tmpportfolio$objectives[[risk_idx]]$name <- rc
-      tmpw <- optimize.portfolio(R=R, portfolio=tmpportfolio, optimize_method=optimize_method, ef=TRUE, ...=...)$weight
-      res <- append(res, extract_risk(R=R, w = tmpw, ES_alpha = alpha, CSM_alpha = alpha)[[risk_type]])
+      tmpw <- optimize.portfolio(R=R, portfolio=tmpportfolio, optimize_method=optimize_method, ef=TRUE, ...=...)$weights
+      if (is_cvxr) {
+        res <- append(res, extract_risk(R=R, w = tmpw, ES_alpha = alpha, CSM_alpha = alpha)[[risk_type]])
+      } else {
+        res <- append(res, compute_risk_value(w = tmpw, metric = risk_type))
+      }
     }
     res
   }
@@ -528,6 +568,7 @@ create.EfficientFrontier <- function(R, portfolio, type, optimize_method = 'CVXR
          "mean-StdDev"=,
          "mean-var" = {frontier <- meanvar.efficient.frontier(portfolio=portfolio,
                                                               R=R, 
+                                                              optimize_method=optimize_method,
                                                               n.portfolios=n.portfolios,
                                                               risk_aversion=risk_aversion,
                                                               ...=...)
@@ -538,17 +579,20 @@ create.EfficientFrontier <- function(R, portfolio, type, optimize_method = 'CVXR
          "mean-es"=,
          "mean-etl" = {frontier <- meanetl.efficient.frontier(portfolio=portfolio, 
                                                               R=R, 
+                                                              optimize_method=optimize_method,
                                                               n.portfolios=n.portfolios,
                                                               ...=...)
          },
          "mean-CSM"=,
          "mean-CSM" = {frontier <- meancsm.efficient.frontier(portfolio=portfolio,
                                                               R=R,
+                                                              optimize_method=optimize_method,
                                                               n.portfolios=n.portfolios,
                                                               ...=...)
          },
          "mean-risk" = {frontier <- meanrisk.efficient.frontier(portfolio=portfolio,
                                                                 R=R,
+                                                                optimize_method=optimize_method,
                                                                 n.portfolios=n.portfolios,
                                                                 ...=...)
          },
@@ -607,10 +651,11 @@ create.EfficientFrontier <- function(R, portfolio, type, optimize_method = 'CVXR
 #' @param risk_aversion vector of risk_aversion values to construct the efficient frontier.
 #' \code{n.portfolios} is ignored if \code{risk_aversion} is specified and the number
 #' of points along the efficient frontier is equal to the length of \code{risk_aversion}.
+#' @param optimize_method the optimize method to get the efficient frontier, default is CVXR
 #' @return an \code{efficient.frontier} object with weights and other metrics along the efficient frontier
 #' @author Ross Bennett
 #' @export
-extractEfficientFrontier <- function(object, match.col="ES", n.portfolios=25, risk_aversion=NULL){
+extractEfficientFrontier <- function(object, match.col="ES", n.portfolios=25, risk_aversion=NULL, optimize_method="CVXR"){
   # extract the efficient frontier from an optimize.portfolio output object
   call <- match.call()
   if(!inherits(object, "optimize.portfolio")) stop("object must be of class 'optimize.portfolio'")
@@ -633,10 +678,10 @@ extractEfficientFrontier <- function(object, match.col="ES", n.portfolios=25, ri
   # We need to create the efficient frontier if object is of class optimize.portfolio.ROI
   if(inherits(object, "optimize.portfolio.ROI")){
     if(match.col %in% c("ETL", "ES", "CVaR")){
-      frontier <- meanetl.efficient.frontier(portfolio=portf, R=R, n.portfolios=n.portfolios)
+      frontier <- meanetl.efficient.frontier(portfolio=portf, R=R, optimize_method=optimize_method, n.portfolios=n.portfolios)
     }
     if(match.col == "StdDev"){
-      frontier <- meanvar.efficient.frontier(portfolio=portf, R=R, n.portfolios=n.portfolios, risk_aversion=risk_aversion)
+      frontier <- meanvar.efficient.frontier(portfolio=portf, R=R, optimize_method=optimize_method, n.portfolios=n.portfolios, risk_aversion=risk_aversion)
     }
   } # end optimize.portfolio.ROI
   
@@ -649,4 +694,3 @@ extractEfficientFrontier <- function(object, match.col="ES", n.portfolios=25, ri
                         R=R,
                         portfolio=portf), class="efficient.frontier"))
 }
-

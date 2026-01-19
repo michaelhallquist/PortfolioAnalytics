@@ -3362,62 +3362,63 @@ optimize.portfolio.rebalancing <- function(R, portfolio=NULL, constraints=NULL, 
     training_period <- rolling_window
   
   if(is.null(training_period)) {if(nrow(R)<36) training_period=nrow(R) else training_period=36}
+  # define the index endpoints of our periods
+  ep.i<-endpoints(R,on=rebalance_on)[which(endpoints(R, on = rebalance_on)>=training_period)]
+
+  windowed_returns <- function(ep) {
+    if (is.null(rolling_window)) {
+      R[1:ep,]
+    } else {
+      R[(ifelse(ep-rolling_window>=1,ep-rolling_window,1)):ep,]
+    }
+  }
+
   # turnover weight_initial is previous time point optimal weight
   turnover_idx <- which(sapply(portfolio$constraints, function(x) x$type == "turnover"))
-  if(length(turnover_idx) > 0){
+  has_turnover <- length(turnover_idx) > 0L
+  if (has_turnover) {
     turnover_idx <- turnover_idx[1]
-    # original weight_initial
-    if(is.null(portfolio$constraints[[turnover_idx]]$weight_initial)){
+    if (is.null(portfolio$constraints[[turnover_idx]]$weight_initial)) {
       portfolio$constraints[[turnover_idx]]$weight_initial <- rep(1/length(portfolio$assets), length(portfolio$assets))
     }
-    
-    # rebalancing
-    if (is.null(rolling_window)){
-      # define the index endpoints of our periods
-      ep.i<-endpoints(R,on=rebalance_on)[which(endpoints(R, on = rebalance_on)>=training_period)]
-      # now apply optimize.portfolio to the periods, in parallel if available
-      ep <- ep.i[1]
-      out_list<-foreach::foreach(ep=iterators::iter(ep.i), .errorhandling='pass', .packages='PortfolioAnalytics') %dopar% {
-        opt <- optimize.portfolio(R[1:ep,], portfolio=portfolio, optimize_method=optimize_method, search_size=search_size, trace=trace, rp=rp, parallel=FALSE, ...=...)
-        portfolio$constraints[[turnover_idx]]$weight_initial <- opt$weights
-        opt
-      }
-    } else {
-      # define the index endpoints of our periods
-      ep.i<-endpoints(R,on=rebalance_on)[which(endpoints(R, on = rebalance_on)>=training_period)]
-      # now apply optimize.portfolio to the periods, in parallel if available
-      out_list<-foreach::foreach(ep=iterators::iter(ep.i), .errorhandling='pass', .packages='PortfolioAnalytics') %dopar% {
-        opt <- optimize.portfolio(R[(ifelse(ep-rolling_window>=1,ep-rolling_window,1)):ep,], portfolio=portfolio, optimize_method=optimize_method, search_size=search_size, trace=trace, rp=rp, parallel=FALSE, ...=...)
-        portfolio$constraints[[turnover_idx]]$weight_initial <- opt$weights
-        opt
+    if (is.null(names(portfolio$constraints[[turnover_idx]]$weight_initial))) {
+      names(portfolio$constraints[[turnover_idx]]$weight_initial) <- names(portfolio$assets)
+    }
+  }
+
+  rebalance_one <- function(ep) {
+    R_windowed <- windowed_returns(ep)
+    pmod <- trim_portfolio(portfolio = portfolio, returns = R_windowed, mincov = mincov)
+
+    if (has_turnover) {
+      weight_initial <- portfolio$constraints[[turnover_idx]]$weight_initial
+      if (!is.null(weight_initial) && !is.null(names(pmod$assets))) {
+        weight_initial <- weight_initial[names(pmod$assets)]
+        pmod$constraints[[turnover_idx]]$weight_initial <- weight_initial
       }
     }
-  } else {
-    if (is.null(rolling_window)){
-      # define the index endpoints of our periods
-      ep.i<-endpoints(R,on=rebalance_on)[which(endpoints(R, on = rebalance_on)>=training_period)]
-      # now apply optimize.portfolio to the periods, in parallel if available
-      ep <- ep.i[1]
-      out_list<-foreach::foreach(ep=iterators::iter(ep.i), .errorhandling='pass', .packages='PortfolioAnalytics') %dopar% {
-        R_windowed <- R[1:ep,]
-        pmod <- trim_portfolio(portfolio = portfolio, returns = R_windowed, mincov = mincov)
-        #pmod <- portfolio
-        
-        #N.B. optimize.portfolio correctly handles case where R_windowed has assets that are not in pmod
-        optimize.portfolio(R_windowed, portfolio=pmod, optimize_method=optimize_method, search_size=search_size, trace=trace, rp=rp, parallel=FALSE, ...=...)
-      }
-    } else {
-      # define the index endpoints of our periods
-      ep.i<-endpoints(R,on=rebalance_on)[which(endpoints(R, on = rebalance_on)>=training_period)]
-      # now apply optimize.portfolio to the periods, in parallel if available
-      out_list<-foreach::foreach(ep=iterators::iter(ep.i), .errorhandling='pass', .packages='PortfolioAnalytics') %dopar% {
-        R_windowed <- R[(ifelse(ep-rolling_window>=1,ep-rolling_window,1)):ep,]
-        pmod <- trim_portfolio(portfolio = portfolio, returns = R_windowed, mincov = mincov)
-        #pmod <- portfolio
-        
-        optimize.portfolio(R_windowed, portfolio=pmod, optimize_method=optimize_method, search_size=search_size, trace=trace, rp=rp, parallel=FALSE, ...=...)
+
+    rp_local <- rp
+    if (!is.null(rp_local)) {
+      if (!identical(names(pmod$assets), names(portfolio$assets))) {
+        rp_local <- NULL
+      } else if (is.matrix(rp_local) && ncol(rp_local) != length(pmod$assets)) {
+        rp_local <- NULL
       }
     }
+    opt <- optimize.portfolio(R_windowed, portfolio=pmod, optimize_method=optimize_method, search_size=search_size, trace=trace, rp=rp_local, parallel=FALSE, ...=...)
+    if (has_turnover && !is.null(opt$weights)) {
+      weight_initial <- rep(0, length(portfolio$assets))
+      names(weight_initial) <- names(portfolio$assets)
+      weight_initial[names(opt$weights)] <- opt$weights
+      portfolio$constraints[[turnover_idx]]$weight_initial <- weight_initial
+    }
+    opt
+  }
+
+  # now apply optimize.portfolio to the periods, in parallel if available
+  out_list<-foreach::foreach(ep=iterators::iter(ep.i), .errorhandling='pass', .packages='PortfolioAnalytics') %dopar% {
+    rebalance_one(ep)
   }
   
   # out_list is a list where each element is an optimize.portfolio object
@@ -3574,7 +3575,6 @@ zero_assets <- function(portfolio, to_drop) {
 #'   Constraints and objectives are then added from the original \code{portfolio} and the object is returned to the user.
 #'   
 #' @author Michael Hallquist
-#' @importFrom pryr modify_call
 #' @export
 trim_portfolio <- function(portfolio, returns, start=NULL, end=NULL, mincov=10) {
   stopifnot(inherits(portfolio, "portfolio.spec"))
@@ -3587,8 +3587,12 @@ trim_portfolio <- function(portfolio, returns, start=NULL, end=NULL, mincov=10) 
   
   R <- reduce_matrix_mincov(R, mincov=mincov, verbose=FALSE)
   
-  if (!is.null(attr(R, "dropped_assets"))) {
-    assets <- setdiff(names(portfolio$assets), attr(R, "dropped_assets"))
+  dropped_assets <- attr(R, "dropped_assets")
+  if (length(dropped_assets) > 0L) {
+    assets <- setdiff(names(portfolio$assets), dropped_assets)
+    if (length(assets) == 0L) {
+      stop("All assets were dropped after trimming by mincov")
+    }
   } else {
     return(portfolio) #no modifications are needed because no assets were dropped
   }
@@ -3598,14 +3602,159 @@ trim_portfolio <- function(portfolio, returns, start=NULL, end=NULL, mincov=10) 
   #to be present in the environment at the time of evaluation.
   
   p_respec <- portfolio.spec(assets=assets)
-  portfolio_sym <- as.name("p_respec")
+  old_assets <- names(portfolio$assets)
+  new_assets <- names(p_respec$assets)
+
+  trim_asset_aligned <- function(x) {
+    if (inherits(x, "portfolio.spec")) {
+      return(x)
+    }
+    if (is.null(old_assets) || is.null(new_assets) || is.null(x)) {
+      return(x)
+    }
+    if (is.matrix(x) || is.data.frame(x)) {
+      row_nms <- rownames(x)
+      col_nms <- colnames(x)
+      if (!is.null(row_nms) && length(row_nms) > 0L && all(row_nms %in% old_assets)) {
+        keep_rows <- new_assets[new_assets %in% row_nms]
+        x <- x[keep_rows, , drop=FALSE]
+      }
+      if (!is.null(col_nms) && length(col_nms) > 0L && all(col_nms %in% old_assets)) {
+        keep_cols <- new_assets[new_assets %in% col_nms]
+        x <- x[, keep_cols, drop=FALSE]
+      }
+      return(x)
+    }
+    if (is.atomic(x) && is.null(dim(x))) {
+      nms <- names(x)
+      if (!is.null(nms) && length(nms) > 0L && all(nms %in% old_assets)) {
+        keep <- new_assets[new_assets %in% nms]
+        return(x[keep])
+      }
+      if (is.null(nms) && length(x) == length(old_assets)) {
+        keep <- match(new_assets, old_assets)
+        return(x[keep])
+      }
+      return(x)
+    }
+    if (is.list(x)) {
+      return(lapply(x, trim_asset_aligned))
+    }
+    x
+  }
+
+  trim_group_constraint <- function(groups, group_min, group_max, group_pos, group_labels) {
+    if (is.null(groups) || is.null(old_assets) || is.null(new_assets)) {
+      return(list(
+        groups = groups,
+        group_min = group_min,
+        group_max = group_max,
+        group_pos = group_pos,
+        group_labels = group_labels
+      ))
+    }
+
+    group_names <- names(groups)
+    keep_idx <- integer(0)
+    new_groups <- list()
+
+    for (i in seq_along(groups)) {
+      g <- groups[[i]]
+      asset_names <- NULL
+      if (is.numeric(g) || is.integer(g)) {
+        asset_names <- old_assets[g]
+      } else if (is.character(g)) {
+        asset_names <- g
+      } else if (is.logical(g)) {
+        asset_names <- old_assets[which(g)]
+      }
+      if (is.null(asset_names)) {
+        next
+      }
+      asset_names <- asset_names[!is.na(asset_names)]
+      asset_names <- asset_names[asset_names %in% new_assets]
+      if (length(asset_names) == 0L) {
+        next
+      }
+      idx <- match(asset_names, new_assets)
+      if (is.null(group_names)) {
+        new_groups[[length(new_groups) + 1]] <- idx
+      } else {
+        new_groups[[group_names[i]]] <- idx
+      }
+      keep_idx <- c(keep_idx, i)
+    }
+
+    if (!is.null(group_min)) group_min <- group_min[keep_idx]
+    if (!is.null(group_max)) group_max <- group_max[keep_idx]
+    if (!is.null(group_pos)) group_pos <- group_pos[keep_idx]
+    if (!is.null(group_labels)) group_labels <- group_labels[keep_idx]
+
+    list(
+      groups = new_groups,
+      group_min = group_min,
+      group_max = group_max,
+      group_pos = group_pos,
+      group_labels = group_labels
+    )
+  }
 
   #copy any constraints across
   if (length(portfolio$constraints) > 0L) {
     for (cc in 1:length(portfolio$constraints)) {
       #replace whatever portfolio was used with the respecified portfolio
-      newcall <- pryr::modify_call(portfolio$constraints[[cc]]$call, list(portfolio=portfolio_sym))
-      p_respec <- eval(newcall)
+      constraint <- portfolio$constraints[[cc]]
+      if (is.null(constraint$type)) {
+        stop("Constraint missing type for respecification")
+      }
+      if (identical(constraint$type, "group") || inherits(constraint, "group_constraint")) {
+        trimmed <- trim_group_constraint(
+          groups = constraint$groups,
+          group_min = constraint$cLO,
+          group_max = constraint$cUP,
+          group_pos = constraint$group_pos,
+          group_labels = constraint$group_labels
+        )
+        if (length(trimmed$groups) == 0L) {
+          warning("Group constraint has no assets after trimming; dropping constraint")
+          next
+        }
+        base_args <- list(
+          portfolio = p_respec,
+          type = "group",
+          groups = trimmed$groups,
+          group_min = trimmed$group_min,
+          group_max = trimmed$group_max
+        )
+        if (!is.null(trimmed$group_pos)) base_args$group_pos <- trimmed$group_pos
+        if (!is.null(trimmed$group_labels)) base_args$group_labels <- trimmed$group_labels
+        if (!is.null(constraint$enabled)) base_args$enabled <- constraint$enabled
+        if (!is.null(constraint$message)) base_args$message <- constraint$message
+        p_respec <- do.call(add.constraint, base_args)
+        next
+      }
+
+      base_args <- list(portfolio = p_respec, type = constraint$type)
+      if (!is.null(constraint$enabled)) base_args$enabled <- constraint$enabled
+      if (!is.null(constraint$message)) base_args$message <- constraint$message
+      extra_names <- setdiff(
+        names(constraint),
+        c("type", "enabled", "message", "call", "class", "assets", "portfolio")
+      )
+      if (constraint$type %in% c("full_investment", "dollar_neutral", "active")) {
+        extra_names <- setdiff(extra_names, c("min_sum", "max_sum"))
+      }
+      if (constraint$type == "long_only") {
+        extra_names <- setdiff(extra_names, c("min", "max"))
+      }
+      if (length(extra_names) > 0L) {
+        base_args <- c(base_args, constraint[extra_names])
+      }
+      for (arg_name in names(base_args)) {
+        if (arg_name == "portfolio") next
+        base_args[[arg_name]] <- trim_asset_aligned(base_args[[arg_name]])
+      }
+      p_respec <- do.call(add.constraint, base_args)
     }
   }
   
@@ -3614,41 +3763,43 @@ trim_portfolio <- function(portfolio, returns, start=NULL, end=NULL, mincov=10) 
     for (cc in 1:length(portfolio$objectives)) {
       #replace whatever portfolio was used with the respecified portfolio
       obj <- portfolio$objectives[[cc]]
-      if (is.call(obj$call)) {
-        newcall <- pryr::modify_call(obj$call, list(portfolio=portfolio_sym))
+      obj_type <- if (inherits(obj, "return_objective")) {
+        "return"
+      } else if (inherits(obj, "portfolio_risk_objective")) {
+        "risk"
+      } else if (inherits(obj, "risk_budget_objective")) {
+        "risk_budget"
+      } else if (inherits(obj, "turnover_objective")) {
+        "turnover"
+      } else if (inherits(obj, "minmax_objective")) {
+        "tmp_minmax"
+      } else if (inherits(obj, "weight_concentration_objective")) {
+        "weight_concentration"
       } else {
-        obj_type <- if (inherits(obj, "return_objective")) {
-          "return"
-        } else if (inherits(obj, "portfolio_risk_objective")) {
-          "risk"
-        } else if (inherits(obj, "risk_budget_objective")) {
-          "risk_budget"
-        } else if (inherits(obj, "turnover_objective")) {
-          "turnover"
-        } else if (inherits(obj, "minmax_objective")) {
-          "tmp_minmax"
-        } else if (inherits(obj, "weight_concentration_objective")) {
-          "weight_concentration"
-        } else {
-          stop("Unsupported objective class for respecification")
-        }
-        
-        base_args <- list(
-          portfolio = portfolio_sym,
-          type = obj_type,
-          name = obj$name,
-          arguments = obj$arguments,
-          enabled = obj$enabled,
-          target = obj$target,
-          multiplier = obj$multiplier
-        )
-        extra_names <- setdiff(names(obj), c("name", "target", "arguments", "enabled", "multiplier", "call"))
-        if (length(extra_names) > 0L) {
-          base_args <- c(base_args, obj[extra_names])
-        }
-        newcall <- as.call(c(list(quote(add.objective)), base_args))
+        stop("Unsupported objective class for respecification")
       }
-      p_respec <- eval(newcall)
+      
+      base_args <- list(
+        portfolio = p_respec,
+        type = obj_type,
+        name = obj$name,
+        arguments = obj$arguments,
+        enabled = obj$enabled,
+        target = obj$target,
+        multiplier = obj$multiplier
+      )
+      extra_names <- setdiff(
+        names(obj),
+        c("type", "name", "target", "arguments", "enabled", "multiplier", "call")
+      )
+      if (length(extra_names) > 0L) {
+        base_args <- c(base_args, obj[extra_names])
+      }
+      for (arg_name in names(base_args)) {
+        if (arg_name == "portfolio") next
+        base_args[[arg_name]] <- trim_asset_aligned(base_args[[arg_name]])
+      }
+      p_respec <- do.call(add.objective, base_args)
     }
   }
   
@@ -3671,29 +3822,52 @@ trim_portfolio <- function(portfolio, returns, start=NULL, end=NULL, mincov=10) 
 #' 
 reduce_matrix_mincov <- function(mat, mincov=52, verbose=TRUE) {
   badcols <- c()
+
+  if (nrow(mat) == 0L) {
+    warning("No observations available in returns matrix")
+    attr(mat, "dropped_assets") <- NULL
+    return(mat)
+  }
+  if (mincov > nrow(mat)) {
+    warning("mincov exceeds available observations; using mincov = ", nrow(mat))
+    mincov <- nrow(mat)
+  }
   
   #start by dropping columns of mat that don't have at least mincov observations
   #if the column has fewer observations, then all of its covariances are bounded by this, too
   
-  low_obs <- sapply(mat, function(x) { sum(!is.na(x)) <= mincov } )
+  if (is.null(dim(mat))) {
+    mat <- matrix(mat, ncol = 1)
+  }
+  low_obs <- colSums(!is.na(mat)) < mincov
   if (any(low_obs)) {
     badcols <- c(badcols, names(mat)[low_obs]) #preserve column names of bad products for output
-    mat <- mat[,!low_obs] #drop columns
+    mat <- mat[,!low_obs, drop=FALSE] #drop columns
+  }
+
+  if (ncol(mat) == 0L) {
+    warning("All assets dropped due to insufficient observations for mincov")
+    attr(mat, "dropped_assets") <- if (length(badcols) > 0L) badcols else NULL
+    return(mat)
+  }
+  if (ncol(mat) == 1L) {
+    attr(mat, "dropped_assets") <- if (length(badcols) > 0L) badcols else NULL
+    return(mat)
   }
   
   #it can be hard to figure out which variable is dragging down covariance coverage
   #fit the covariance matrix, then drop the most offensive variable iteratively until we're above the mincov criterion
   min_obs <- 0
-  while (min_obs <= mincov) {
-    cmat <- suppressWarnings(Hmisc::rcorr(mat))
-    bad_n <- which(cmat$n < mincov, arr.ind=TRUE)
+  while (min_obs < mincov) {
+    n_mat <- crossprod(!is.na(mat))
+    bad_n <- which(n_mat < mincov, arr.ind=TRUE)
     if (nrow(bad_n) > 0) {
       miss <- sort(table(bad_n[,1]), decreasing=TRUE)
       worst <- as.numeric(names(miss))[1]
-      badcols <- c(badcols, dimnames(cmat$n)[[1]][worst])
+      badcols <- c(badcols, dimnames(n_mat)[[1]][worst])
       mat <- mat[,-1*worst]
     }
-    min_obs <- min(cmat$n)
+    min_obs <- min(n_mat)
   }
   
   if (verbose) {
@@ -3701,7 +3875,7 @@ reduce_matrix_mincov <- function(mat, mincov=52, verbose=TRUE) {
     print(badcols)
   }
   
-  attr(mat, "dropped_assets") <- badcols
+  attr(mat, "dropped_assets") <- if (length(badcols) > 0L) badcols else NULL
   return(mat)
 }
 

@@ -8,7 +8,8 @@ extractEfficientFrontier(
   object,
   match.col = "ES",
   n.portfolios = 25,
-  risk_aversion = NULL
+  risk_aversion = NULL,
+  optimize_method = "CVXR"
 )
 }
 \arguments{
@@ -24,6 +25,8 @@ by \code{\link{optimize.portfolio}}.}
 \item{risk_aversion}{vector of risk_aversion values to construct the efficient frontier.
 \code{n.portfolios} is ignored if \code{risk_aversion} is specified and the number
 of points along the efficient frontier is equal to the length of \code{risk_aversion}.}
+
+\item{optimize_method}{the optimize method to get the efficient frontier, default is CVXR}
 }
 \value{
 an \code{efficient.frontier} object with weights and other metrics along the efficient frontier

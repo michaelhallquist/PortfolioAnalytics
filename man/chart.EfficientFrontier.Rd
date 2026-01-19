@@ -71,6 +71,7 @@ chart.EfficientFrontier(object, ...)
   pch.assets = 21,
   cex.assets = 0.8
 )
+
 \method{chart.EfficientFrontier}{efficient.frontier}(
   object,
   ...,

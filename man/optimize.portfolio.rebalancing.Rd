@@ -60,14 +60,14 @@ a training data in the front of the returns data}
 of the rolling window, the default of NULL will run the optimization 
 using the data from inception.}
 
-\item{mincov}{number of observations that must be present in variances and
-covariances for an asset to be retained in rebalancing windows without
-turnover constraints.}
-
 \item{portfolio}{an object of type "portfolio" specifying the constraints 
 and objectives for the optimization}
 
 \item{objectives}{default NULL, a list of objective objects}
+
+\item{mincov}{number of observations that must be present in variances and
+covariances for an asset to be retained in rebalancing windows without
+turnover constraints.}
 }
 \value{
 a list containing the following elements

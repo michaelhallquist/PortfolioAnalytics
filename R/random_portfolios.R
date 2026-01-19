@@ -449,7 +449,7 @@ random_portfolios <- random_portfolios_v2 <- function( portfolio, permutations=1
     #  # check_constraint returns TRUE if all constraints are satisfied
     #  check_constraints(weights=rp[i,], portfolio=portfolio)
     #}
-    rp <- rp[which(check==TRUE),]
+    rp <- rp[which(check==TRUE), , drop=FALSE]
   }
   return(rp)
 }
