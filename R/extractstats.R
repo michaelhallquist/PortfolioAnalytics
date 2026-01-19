@@ -379,7 +379,7 @@ extractWeights.optimize.portfolio.rebalancing <- function(object, ...){
   #refactoring of this function allows the assets available to vary by rebalancing period
   rebal_object <- object$opt_rebal
   all_weights <- lapply(rebal_object, "[[", "weights")
-  all_assets <- sort(unique(unlist(sapply(all_weights, function(x) { names(x) }))))
+  all_assets <- sort(unique(unlist(lapply(all_weights, function(x) { names(x) }))))
   numRows = length(rebal_object) #number of rebalancing periods
 
   result <- matrix(0, nrow=numRows, ncol=length(all_assets),

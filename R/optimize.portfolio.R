@@ -1624,6 +1624,9 @@ optimize.portfolio.rebalancing <- function(R, portfolio=NULL, constraints=NULL, 
     out_list<-foreach::foreach(ep=iterators::iter(ep.i), .errorhandling='pass', .packages='PortfolioAnalytics') %dopar% {
       R_windowed <- R[1:ep,]
       pmod <- trim_portfolio(portfolio = portfolio, returns = R_windowed, mincov = mincov)
+      #pmod <- portfolio
+      
+      #N.B. optimize.portfolio correctly handles case where R_windowed has assets that are not in pmod
       optimize.portfolio(R_windowed, portfolio=pmod, optimize_method=optimize_method, search_size=search_size, trace=trace, rp=rp, parallel=FALSE, ...=...)
     }
   } else {
@@ -1631,8 +1634,9 @@ optimize.portfolio.rebalancing <- function(R, portfolio=NULL, constraints=NULL, 
     ep.i<-endpoints(R,on=rebalance_on)[which(endpoints(R, on = rebalance_on)>=training_period)]
     # now apply optimize.portfolio to the periods, in parallel if available
     out_list<-foreach::foreach(ep=iterators::iter(ep.i), .errorhandling='pass', .packages='PortfolioAnalytics') %dopar% {
-      R[(ifelse(ep-rolling_window>=1,ep-rolling_window,1)):ep,]
+      R_windowed <- R[(ifelse(ep-rolling_window>=1,ep-rolling_window,1)):ep,]
       pmod <- trim_portfolio(portfolio = portfolio, returns = R_windowed, mincov = mincov)
+      #pmod <- portfolio
       
       optimize.portfolio(R_windowed, portfolio=pmod, optimize_method=optimize_method, search_size=search_size, trace=trace, rp=rp, parallel=FALSE, ...=...)
     }
@@ -1728,8 +1732,43 @@ optimize.portfolio.parallel <- function(R,
 
 #TODO write function to compute an efficient frontier of optimal portfolios
 
-#function to trim a portfolio of assets with missing data between start and end that would
-#invalidate optimization
+
+#' small helper function to zero out certain assets that cannot be in the optimization (due to missingness)
+#' 
+zero_assets <- function(portfolio, to_drop) {
+  stopifnot(inherits(portfolio, "portfolio.spec"))
+
+  add_box <- FALSE  
+  if (!is.null(portfolio$constraints)) {
+    types <- sapply(portfolio$constraints, "[[", "type")
+    if (any(types=="box")) {
+      portfolio$constraints[types=="box"] <- lapply(portfolio$constraints[types=="box"], function(bb) {
+        bb$min[names(bb$min) %in% to_drop] <- 0
+        bb$max[names(bb$max) %in% to_drop] <- 0
+        return(bb)
+      })
+    } else {
+      add_box <- TRUE
+    }
+  } else {
+    add_box <- TRUE
+  }
+  
+  if (isTRUE(add_box)) {
+    maxv <- rep(1, length(portfolio$assets))
+    names(maxv) <- names(portfolio$assets)
+    maxv[names(maxv) %in% to_drop] <- 0
+    portfolio <- add.constraint(portfolio, type="box", min=0, max=maxv)
+  }
+  
+  portfolio$assets[to_drop] <- 0
+  
+  return(portfolio)
+  
+}
+
+#' function to trim a portfolio of assets with missing data between start and end that would
+#' invalidate optimization
 #' helper function to trim a portfolio containing missing assets within the interval of interest
 #' 
 #' @param portfolio portfolio.spec object to be modified
@@ -1742,7 +1781,7 @@ optimize.portfolio.parallel <- function(R,
 #' @return A modified \code{portfolio.spec} object containing only assets with observations above the \code{mincov}
 #'   threshold in covariance estimation.
 #'   
-#' @details Portfolio optimization breaks down if there is missingnes in the assets being considered within the window of
+#' @details Portfolio optimization breaks down if there is missingness in the assets being considered within the window of
 #'   interest. Although the moments of returns are calculated using pairwise completeness, the variance-covariance matrix
 #'   still breaks down if there is no overlap in two assets (e.g., if one product is introduced and another is phased out).
 #'   
@@ -1775,13 +1814,18 @@ trim_portfolio <- function(portfolio, returns, start=NULL, end=NULL, mincov=10) 
     return(portfolio) #no modifications are needed because no assets were dropped
   }
   
-  p_respec <- portfolio.spec(assets=assets)
+  #hack the trimming of a portfolio by forcing assets that have been dropped by fixing the max to 0
+  #the pryr approach doesn't work well because the arguments to the add.objective and add.constraint have
+  #to be present in the environment at the time of evaluation.
   
+  p_respec <- portfolio.spec(assets=assets)
+  portfolio_sym <- as.name("p_respec")
+
   #copy any constraints across
   if (length(portfolio$constraints) > 0L) {
     for (cc in 1:length(portfolio$constraints)) {
       #replace whatever portfolio was used with the respecified portfolio
-      newcall <- pryr::modify_call(portfolio$constraints[[cc]]$call, list(portfolio=quote(p_respec)))
+      newcall <- pryr::modify_call(portfolio$constraints[[cc]]$call, list(portfolio=portfolio_sym))
       p_respec <- eval(newcall)
     }
   }
@@ -1790,7 +1834,41 @@ trim_portfolio <- function(portfolio, returns, start=NULL, end=NULL, mincov=10) 
   if (length(portfolio$objectives) > 0L) {
     for (cc in 1:length(portfolio$objectives)) {
       #replace whatever portfolio was used with the respecified portfolio
-      newcall <- pryr::modify_call(portfolio$objectives[[cc]]$call, list(portfolio=quote(p_respec)))
+      obj <- portfolio$objectives[[cc]]
+      if (is.call(obj$call)) {
+        newcall <- pryr::modify_call(obj$call, list(portfolio=portfolio_sym))
+      } else {
+        obj_type <- if (inherits(obj, "return_objective")) {
+          "return"
+        } else if (inherits(obj, "portfolio_risk_objective")) {
+          "risk"
+        } else if (inherits(obj, "risk_budget_objective")) {
+          "risk_budget"
+        } else if (inherits(obj, "turnover_objective")) {
+          "turnover"
+        } else if (inherits(obj, "minmax_objective")) {
+          "tmp_minmax"
+        } else if (inherits(obj, "weight_concentration_objective")) {
+          "weight_concentration"
+        } else {
+          stop("Unsupported objective class for respecification")
+        }
+        
+        base_args <- list(
+          portfolio = portfolio_sym,
+          type = obj_type,
+          name = obj$name,
+          arguments = obj$arguments,
+          enabled = obj$enabled,
+          target = obj$target,
+          multiplier = obj$multiplier
+        )
+        extra_names <- setdiff(names(obj), c("name", "target", "arguments", "enabled", "multiplier", "call"))
+        if (length(extra_names) > 0L) {
+          base_args <- c(base_args, obj[extra_names])
+        }
+        newcall <- as.call(c(list(quote(add.objective)), base_args))
+      }
       p_respec <- eval(newcall)
     }
   }
