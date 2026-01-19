@@ -1,7 +1,7 @@
 ###############################################################################
 # R (https://r-project.org/) Numeric Methods for Optimization of Portfolios
 #
-# Copyright (c) 2004-2018 Brian G. Peterson, Peter Carl, Ross Bennett, Kris Boudt
+# Copyright (c) 2004-2023 Brian G. Peterson, Peter Carl, Ross Bennett, Kris Boudt, Xinran Zhao
 #
 # This library is distributed under the terms of the GNU Public License (GPL)
 # for full details see the file COPYING
@@ -80,6 +80,8 @@ extractStats <- function (object, prefix=NULL, ...){
     UseMethod('extractStats')
 }
 
+#' @method extractStats optimize.portfolio.DEoptim
+
 #' @export 
 extractStats.optimize.portfolio.DEoptim <- function(object, prefix=NULL, ...) {
   if(!inherits(object, "optimize.portfolio.DEoptim")) stop("object must be of class optimize.portfolio.DEoptim")
@@ -112,6 +114,8 @@ extractStats.optimize.portfolio.DEoptim <- function(object, prefix=NULL, ...) {
   return(result)
 }
 
+#' @method extractStats optimize.portfolio.ROI
+
 #' @export 
 extractStats.optimize.portfolio.ROI <- function(object, prefix=NULL, ...) {
   if(!inherits(object, "optimize.portfolio.ROI")) stop("object must be of class optimize.portfolio.ROI")
@@ -126,6 +130,25 @@ extractStats.optimize.portfolio.ROI <- function(object, prefix=NULL, ...) {
   names(result)<-rnames
   return(result)
 }
+
+#' @method extractStats optimize.portfolio.CVXR
+
+#' @export 
+extractStats.optimize.portfolio.CVXR <- function(object, prefix=NULL, ...) {
+  if(!inherits(object, "optimize.portfolio.CVXR")) stop("object must be of class optimize.portfolio.CVXR")
+  trow <- c(object$out, object$weights)
+  objmeas <- extractObjectiveMeasures(object)
+  objnames <- names(objmeas)
+  obj <- unlist(objmeas)
+  result <- c(obj, trow)
+  rnames<-c(objnames, 'out', paste('w', names(object$weights), sep='.'))
+  #print(result)
+  #print(rnames)
+  names(result)<-rnames
+  return(result)
+}
+
+#' @method extractStats optimize.portfolio.pso
 
 #' @export 
 extractStats.optimize.portfolio.pso <- function(object, prefix=NULL, ...){
@@ -196,6 +219,8 @@ extractStats.optimize.portfolio.pso <- function(object, prefix=NULL, ...){
   return(result)
 }
 
+#' @method extractStats optimize.portfolio.GenSA
+
 #' @export 
 extractStats.optimize.portfolio.GenSA <- function(object, prefix=NULL, ...) {
   if(!inherits(object, "optimize.portfolio.GenSA")) stop("object must be of class optimize.portfolio.GenSA")
@@ -212,6 +237,8 @@ extractStats.optimize.portfolio.GenSA <- function(object, prefix=NULL, ...) {
   return(result)
 }
 
+#' @method extractStats optimize.portfolio.invol
+
 #' @export 
 extractStats.optimize.portfolio.invol <- function(object, prefix=NULL, ...) {
   if(!inherits(object, "optimize.portfolio.invol")) stop("object must be of class optimize.portfolio.invol")
@@ -225,6 +252,8 @@ extractStats.optimize.portfolio.invol <- function(object, prefix=NULL, ...) {
   return(result)
 }
 
+#' @method extractStats optimize.portfolio.eqwt
+
 #' @export 
 extractStats.optimize.portfolio.eqwt <- function(object, prefix=NULL, ...) {
   if(!inherits(object, "optimize.portfolio.eqwt")) stop("object must be of class optimize.portfolio.eqwt")
@@ -237,6 +266,8 @@ extractStats.optimize.portfolio.eqwt <- function(object, prefix=NULL, ...) {
   names(result) <- rnames
   return(result)
 }
+
+#' @method extractStats optimize.portfolio.rebalancing
 
 #' @export 
 extractStats.optimize.portfolio.rebalancing <- function(object, prefix=NULL, ...) {
@@ -280,6 +311,8 @@ extractStatsRegime <- function(object, prefix=NULL){
   out.list
 }
 
+#' @method extractStats optimize.portfolio.parallel
+
 #' @export
 extractStats.optimize.portfolio.parallel <- function(object,prefix=NULL,...) {
     resultlist<-object
@@ -293,6 +326,8 @@ extractStats.optimize.portfolio.parallel <- function(object,prefix=NULL,...) {
     rownames(result) = paste("par", index(result), rownames(result), sep=".")
     return(result)
 }
+
+#' @method extractStats optimize.portfolio.random
 
 #' @export
 extractStats.optimize.portfolio.random <- function(object, prefix=NULL, ...){
@@ -325,6 +360,8 @@ extractStats.optimize.portfolio.random <- function(object, prefix=NULL, ...){
   return(result)
 }
 
+#' @method extractStats opt.list
+
 #' @export
 extractStats.opt.list <- function(object, ...){
   # get the stats of each optimization in a list
@@ -335,6 +372,8 @@ extractStats.opt.list <- function(object, ...){
   }
   return(stats_list)
 }
+
+#' @method extractStats opt.rebal.list
 
 #' @export
 extractStats.opt.rebal.list <- function(object, ...){
@@ -362,6 +401,8 @@ extractWeights <- function (object, ...){
   UseMethod('extractWeights')
 }
 
+#' @method extractWeights optimize.portfolio
+
 #' @export
 extractWeights.optimize.portfolio <- function(object, ...){
   if(!inherits(object, "optimize.portfolio")){
@@ -369,6 +410,8 @@ extractWeights.optimize.portfolio <- function(object, ...){
   }
   return(object$weights)
 }
+
+#' @method extractWeights optimize.portfolio.rebalancing
 
 #' @export
 extractWeights.optimize.portfolio.rebalancing <- function(object, ...){
@@ -397,10 +440,14 @@ extractWeights.optimize.portfolio.rebalancing <- function(object, ...){
   return(result)
 }
 
+#' @method extractWeights summary.optimize.portfolio.rebalancing
+
 #' @export
 extractWeights.summary.optimize.portfolio.rebalancing <- function(object, ...){
   object$weights
 }
+
+#' @method extractWeights opt.list
 
 #' @export
 extractWeights.opt.list <- function(object, ...){
@@ -430,6 +477,8 @@ extractWeights.opt.list <- function(object, ...){
   return(weights_mat)
 }
 
+#' @method extractWeights opt.rebal.list
+
 #' @export
 extractWeights.opt.rebal.list <- function(object, ...){
   # get the optimal weights of each optimization in a list
@@ -457,6 +506,8 @@ extractObjectiveMeasures <- function(object){
   UseMethod("extractObjectiveMeasures")
 }
 
+#' @method extractObjectiveMeasures optimize.portfolio
+
 #' @export
 extractObjectiveMeasures.optimize.portfolio <- function(object){
   if(!inherits(object, "optimize.portfolio")) stop("object must be of class 'optimize.portfolio'")
@@ -464,6 +515,8 @@ extractObjectiveMeasures.optimize.portfolio <- function(object){
   out <- object$objective_measures
   return(out)
 }
+
+#' @method extractObjectiveMeasures optimize.portfolio.rebalancing
 
 #' @export
 extractObjectiveMeasures.optimize.portfolio.rebalancing <- function(object){
@@ -525,10 +578,14 @@ extractObjRegime <- function(object){
   out.list
 }
 
+#' @method extractObjectiveMeasures summary.optimize.portfolio.rebalancing
+
 #' @export
 extractObjectiveMeasures.summary.optimize.portfolio.rebalancing <- function(object){
   object$objective_measures
 }
+
+#' @method extractObjectiveMeasures opt.list
 
 #' @export
 extractObjectiveMeasures.opt.list <- function(object){
@@ -630,6 +687,8 @@ extractObjectiveMeasures.opt.list <- function(object){
   return(out)
 }
 
+#' @method extractObjectiveMeasures opt.rebal.list
+
 #' @export
 extractObjectiveMeasures.opt.rebal.list <- function(object, ...){
   # get the optimal weights of each optimization in a list
@@ -652,7 +711,7 @@ extractObjectiveMeasures.opt.rebal.list <- function(object, ...){
 #' @param object object of class \code{optimize.portfolio}
 #' @param ... passthrough parameters. Not currently used
 #' @return a list with two elements
-#' \itemize{
+#' \describe{
 #'   \item{weights: }{Optimal set of weights from the \code{optimize.portfolio} object}
 #'   \item{category_weights: }{Weights by category if category_labels are supplied in the \code{portfolio} object}
 #'   \item{group_weights: }{Weights by group if group is a constraint type}

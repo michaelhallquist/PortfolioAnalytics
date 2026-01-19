@@ -2,6 +2,7 @@
 % Please edit documentation in R/charts.efficient.frontier.R
 \name{chart.EfficientFrontier}
 \alias{chart.EfficientFrontier}
+\alias{chart.EfficientFrontier.optimize.portfolio.CVXR}
 \alias{chart.EfficientFrontier.optimize.portfolio.ROI}
 \alias{chart.EfficientFrontier.optimize.portfolio}
 \alias{chart.EfficientFrontier.efficient.frontier}
@@ -9,9 +10,31 @@
 \usage{
 chart.EfficientFrontier(object, ...)
 
+\method{chart.EfficientFrontier}{optimize.portfolio.CVXR}(
+  object,
+  ...,
+  optimize_method = "CVXR",
+  match.col = "ES",
+  n.portfolios = 25,
+  xlim = NULL,
+  ylim = NULL,
+  cex.axis = 0.8,
+  element.color = "darkgray",
+  main = "Efficient Frontier",
+  RAR.text = "SR",
+  rf = 0,
+  tangent.line = TRUE,
+  cex.legend = 0.8,
+  chart.assets = TRUE,
+  labels.assets = TRUE,
+  pch.assets = 21,
+  cex.assets = 0.8
+)
+
 \method{chart.EfficientFrontier}{optimize.portfolio.ROI}(
   object,
   ...,
+  optimize_method = "ROI",
   match.col = "ES",
   n.portfolios = 25,
   xlim = NULL,
@@ -48,7 +71,6 @@ chart.EfficientFrontier(object, ...)
   pch.assets = 21,
   cex.assets = 0.8
 )
-
 \method{chart.EfficientFrontier}{efficient.frontier}(
   object,
   ...,
@@ -73,6 +95,8 @@ chart.EfficientFrontier(object, ...)
 \item{object}{object to chart.}
 
 \item{\dots}{passthru parameters to \code{\link{plot}}}
+
+\item{optimize_method}{the optimize method to get the efficient frontier}
 
 \item{match.col}{string name of column to use for risk (horizontal axis).
 \code{match.col} must match the name of an objective measure in the 
@@ -142,5 +166,5 @@ will be plotted using a risk free rate of 0. Set \code{rf=NULL} to omit
 this from the plot.
 }
 \author{
-Ross Bennett
+Ross Bennett, Xinran Zhao
 }

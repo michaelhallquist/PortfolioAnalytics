@@ -7,7 +7,7 @@
 optimize.portfolio.parallel(
   R,
   portfolio,
-  optimize_method = c("DEoptim", "random", "ROI", "pso", "GenSA"),
+  optimize_method = c("DEoptim", "random", "ROI", "pso", "GenSA", "CVXR"),
   search_size = 20000,
   trace = FALSE,
   ...,
@@ -22,7 +22,7 @@ optimize.portfolio.parallel(
 
 \item{portfolio}{an object of type "portfolio" specifying the constraints and objectives for the optimization}
 
-\item{optimize_method}{one of "DEoptim", "random", "pso", "GenSA".}
+\item{optimize_method}{one of "DEoptim", "random", "ROI", "pso", "GenSA", or "CVXR".}
 
 \item{search_size}{integer, how many portfolios to test, default 20,000}
 

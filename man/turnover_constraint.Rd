@@ -7,6 +7,7 @@
 turnover_constraint(
   type = "turnover",
   turnover_target,
+  weight_initial = NULL,
   enabled = TRUE,
   message = FALSE,
   ...
@@ -16,6 +17,8 @@ turnover_constraint(
 \item{type}{character type of the constraint}
 
 \item{turnover_target}{target turnover value}
+
+\item{weight_initial}{initial weights used to compute turnover}
 
 \item{enabled}{TRUE/FALSE}
 

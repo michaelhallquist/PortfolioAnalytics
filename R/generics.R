@@ -1,7 +1,7 @@
 ###############################################################################
 # R (https://r-project.org/) Numeric Methods for Optimization of Portfolios
 #
-# Copyright (c) 2004-2018 Brian G. Peterson, Peter Carl, Ross Bennett, Kris Boudt
+# Copyright (c) 2004-2021 Brian G. Peterson, Peter Carl, Ross Bennett, Kris Boudt
 #
 # This library is distributed under the terms of the GNU Public License (GPL)
 # for full details see the file COPYING
@@ -20,6 +20,8 @@
 #' @seealso \code{\link{optimize.portfolio.rebalancing}}
 #' @author Ross Bennett
 #' @rdname print.optimize.portfolio.rebalancing
+#' @method print optimize.portfolio.rebalancing
+
 #' @export
 print.optimize.portfolio.rebalancing <- function(x, ..., digits=4){
   cat(rep("*", 50) ,"\n", sep="")
@@ -96,6 +98,8 @@ summary.optimize.portfolio.rebalancing <- function(object, ...) {
 #' @param digits number of digits used for printing
 #' @seealso \code{\link{summary.optimize.portfolio.rebalancing}}
 #' @author Ross Bennett
+#' @method print summary.optimize.portfolio.rebalancing
+
 #' @export
 print.summary.optimize.portfolio.rebalancing <- function(x, ..., digits=4){
   cat(rep("*", 50) ,"\n", sep="")
@@ -144,6 +148,8 @@ print.summary.optimize.portfolio.rebalancing <- function(x, ..., digits=4){
 #' @param \dots any other passthru parameters
 #' @seealso \code{\link{portfolio.spec}}
 #' @author Ross Bennett
+#' @method print portfolio
+
 #' @export
 print.portfolio <- function(x, ...){
   if(!is.portfolio(x)) stop("object passed in is not of class 'portfolio'")
@@ -341,6 +347,8 @@ summary.portfolio <- function(object, ...){
 #' @param x object of class \code{constraint}
 #' @param \dots any other passthru parameters
 #' @author Ross Bennett
+#' @method print constraint
+
 #' @export
 print.constraint <- function(x, ...){
   print.default(x, ...)
@@ -356,6 +364,8 @@ print.constraint <- function(x, ...){
 #' @seealso \code{\link{optimize.portfolio}}
 #' @author Ross Bennett
 #' @rdname print.optimize.portfolio
+#' @method print optimize.portfolio.ROI
+
 #' @export
 print.optimize.portfolio.ROI <- function(x, ..., digits=4){
   cat(rep("*", 35) ,"\n", sep="")
@@ -396,6 +406,50 @@ print.optimize.portfolio.ROI <- function(x, ..., digits=4){
 
 
 #' @rdname print.optimize.portfolio
+#' @method print optimize.portfolio.CVXR
+
+#' @export
+print.optimize.portfolio.CVXR <- function(x, ..., digits=4){
+  cat(rep("*", 35) ,"\n", sep="")
+  cat("PortfolioAnalytics Optimization\n")
+  cat(rep("*", 35) ,"\n", sep="")
+  
+  cat("\nCall:\n", paste(deparse(x$call), sep = "\n", collapse = "\n"), 
+      "\n\n", sep = "")
+  
+  # get optimal weights
+  cat("Optimal Weights:\n")
+  print.default(round(x$weights, digits=digits), digits=digits)
+  cat("\n")
+  
+  # get objective measures
+  objective_measures <- x$objective_measures
+  tmp_obj <- as.numeric(unlist(objective_measures))
+  names(tmp_obj) <- names(objective_measures)
+  cat("Objective Measures:\n")
+  for(i in 1:length(objective_measures)){
+    print(tmp_obj[i], digits=4)
+    cat("\n")
+    if(length(objective_measures[[i]]) > 1){
+      # This will be the case for any objective measures with risk budgets
+      for(j in 2:length(objective_measures[[i]])){
+        tmpl <- objective_measures[[i]][j]
+        cat(names(tmpl), ":\n")
+        tmpv <- unlist(tmpl)
+        names(tmpv) <- names(x$weights)
+        print.default(round(tmpv, digits=digits), digits=digits)
+        cat("\n")
+      }
+    }
+    cat("\n")
+  }
+  cat("\n")
+}
+
+
+#' @rdname print.optimize.portfolio
+#' @method print optimize.portfolio.random
+
 #' @export
 print.optimize.portfolio.random <- function(x, ..., digits=4){
   cat(rep("*", 35) ,"\n", sep="")
@@ -436,6 +490,8 @@ print.optimize.portfolio.random <- function(x, ..., digits=4){
 
 
 #' @rdname print.optimize.portfolio
+#' @method print optimize.portfolio.DEoptim
+
 #' @export
 print.optimize.portfolio.DEoptim <- function(x, ..., digits=4){
   cat(rep("*", 35) ,"\n", sep="")
@@ -476,6 +532,8 @@ print.optimize.portfolio.DEoptim <- function(x, ..., digits=4){
 
 
 #' @rdname print.optimize.portfolio
+#' @method print optimize.portfolio.GenSA
+
 #' @export
 print.optimize.portfolio.GenSA <- function(x, ..., digits=4){
   cat(rep("*", 35) ,"\n", sep="")
@@ -516,6 +574,8 @@ print.optimize.portfolio.GenSA <- function(x, ..., digits=4){
 
 
 #' @rdname print.optimize.portfolio
+#' @method print optimize.portfolio.pso
+
 #' @export
 print.optimize.portfolio.pso <- function(x, ..., digits=4){
   cat(rep("*", 35) ,"\n", sep="")
@@ -562,6 +622,8 @@ print.optimize.portfolio.pso <- function(x, ..., digits=4){
 #' @param ... any other passthru parameters. Currently not used.
 #' @seealso \code{\link{summary.optimize.portfolio}}
 #' @author Ross Bennett
+#' @method print summary.optimize.portfolio
+
 #' @export
 print.summary.optimize.portfolio <- function(x, ...){
   
@@ -763,6 +825,8 @@ print.summary.optimize.portfolio <- function(x, ...){
 #' @param ... any other passthru parameters. Currently not used.
 #' @seealso \code{\link{optimize.portfolio}}
 #' @author Ross Bennett
+#' @method summary optimize.portfolio
+
 #' @export
 summary.optimize.portfolio <- function(object, ...){
   
@@ -893,6 +957,8 @@ summary.optimize.portfolio <- function(object, ...){
 #' @param \dots any other passthru parameters
 #' @seealso \code{\link{create.EfficientFrontier}}
 #' @author Ross Bennett
+#' @method print efficient.frontier
+
 #' @export
 print.efficient.frontier <- function(x, ...){
   if(!inherits(x, "efficient.frontier")) stop("object passed in is not of class 'efficient.frontier'")
@@ -951,6 +1017,8 @@ summary.efficient.frontier <- function(object, ..., digits=3){
   invisible(list(weights=wts, metrics=riskret))
 }
 
+#' @method print portfolio.list
+
 #' @export
 print.portfolio.list <- function(x, ...){
   for(i in 1:length(x)){
@@ -958,6 +1026,8 @@ print.portfolio.list <- function(x, ...){
     print(x[[i]])
   }
 }
+
+#' @method print opt.list
 
 #' @export
 print.opt.list <- function(x, ...){
@@ -967,6 +1037,8 @@ print.opt.list <- function(x, ...){
   }
 }
 
+#' @method print opt.rebal.list
+
 #' @export
 print.opt.rebal.list <- function(x, ...){
   for(i in 1:length(x)){
@@ -974,6 +1046,8 @@ print.opt.rebal.list <- function(x, ...){
     print(x[[i]])
   }
 }
+
+#' @method print regime.portfolios
 
 #' @export
 print.regime.portfolios <- function(x, ...){
@@ -991,6 +1065,8 @@ print.regime.portfolios <- function(x, ...){
   }
 }
 
+#' @method summary optimize.portfolio.parallel
+
 #' @export
 summary.optimize.portfolio.parallel <- function(object, ...){
   out <- list()
@@ -1007,6 +1083,8 @@ summary.optimize.portfolio.parallel <- function(object, ...){
   class(out) <- "summary.optimize.portfolio.parallel"
   return(out)
 }
+
+#' @method print optimize.portfolio.parallel
 
 #' @export
 print.optimize.portfolio.parallel <- function(x, ..., probs = c(0.025, 0.975)){

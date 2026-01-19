@@ -23,7 +23,7 @@ optimize.portfolio.rebalancing(
   portfolio = NULL,
   constraints = NULL,
   objectives = NULL,
-  optimize_method = c("DEoptim", "random", "ROI"),
+  optimize_method = c("DEoptim", "random", "ROI", "CVXR"),
   search_size = 20000,
   trace = FALSE,
   ...,
@@ -39,7 +39,7 @@ optimize.portfolio.rebalancing(
 
 \item{constraints}{default NULL, a list of constraint objects}
 
-\item{optimize_method}{one of "DEoptim", "random", "pso", "GenSA", or "ROI"}
+\item{optimize_method}{one of "DEoptim", "random", "pso", "GenSA", "ROI", or "CVXR"}
 
 \item{search_size}{integer, how many portfolios to test, default 20,000}
 
@@ -60,6 +60,10 @@ a training data in the front of the returns data}
 of the rolling window, the default of NULL will run the optimization 
 using the data from inception.}
 
+\item{mincov}{number of observations that must be present in variances and
+covariances for an asset to be retained in rebalancing windows without
+turnover constraints.}
+
 \item{portfolio}{an object of type "portfolio" specifying the constraints 
 and objectives for the optimization}
 
@@ -67,7 +71,7 @@ and objectives for the optimization}
 }
 \value{
 a list containing the following elements
-\itemize{
+\describe{
   \item{\code{portfolio}:}{ The portfolio object.}
   \item{\code{R}:}{ The asset returns.}
   \item{\code{call}:}{ The function call.}
@@ -97,20 +101,20 @@ specified, then \code{training_period} is set to the value of
 The user should be aware of the following behavior when both 
 \code{training_period} and \code{rolling_window} are specified and have 
 different values
-\itemize{
+\describe{
   \item{\code{training_period < rolling_window}: }{For example, if you have 
   \code{rolling_window=60}, \code{training_period=50}, and the periodicity 
   of the data is the same as the rebalance frequency (i.e. monthly data with 
   \code{rebalance_on="months")} then the returns data used in the optimization 
   at each iteration are as follows:
   \itemize{
-  \item{1: R[1:50,]}
-  \item{2: R[1:51,]}
-  \item{...}
-  \item{11: R[1:60,]}
-  \item{12: R[1:61,]}
-  \item{13: R[2:62,]}
-  \item{...}
+  \item 1: R[1:50,]
+  \item 2: R[1:51,]
+  \item ...
+  \item 11: R[1:60,]
+  \item 12: R[1:61,]
+  \item 13: R[2:62,]
+  \item ...
   }
   This results in a growing window for several optimizations initially while
   the endpoint iterator (i.e. \code{[50, 51, ...]}) is less than the 

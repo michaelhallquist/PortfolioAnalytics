@@ -7,6 +7,7 @@
 \usage{
 portfolio.spec(
   assets = NULL,
+  name = "portfolio",
   category_labels = NULL,
   weight_seq = NULL,
   message = FALSE
@@ -14,6 +15,8 @@ portfolio.spec(
 }
 \arguments{
 \item{assets}{number of assets, or optionally a named vector of assets specifying seed weights. If seed weights are not specified, an equal weight portfolio will be assumed.}
+
+\item{name}{give the portfolio a name, the default name will be 'portfolio'}
 
 \item{category_labels}{character vector to categorize assets by sector, industry, geography, market-cap, currency, etc. Default NULL}
 
@@ -32,7 +35,7 @@ required argument to \code{portfolio.spec} is \code{assets}.
 }
 \details{
 The portfolio object contains the following elements:
-\itemize{
+\describe{
 \item{\code{assets}}{ named vector of the seed weights}
 \item{\code{category_labels}}{ character vector to categorize the assets by sector, geography, etc.}
 \item{\code{weight_seq}}{ sequence of weights used by \code{\link{random_portfolios}}. See \code{\link{generatesequence}}}
